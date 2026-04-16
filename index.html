@@ -177,8 +177,9 @@ const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const state = {
   step: 1,
-  crewId: localStorage.getItem('crewId') || '',
-  actingRank: localStorage.getItem('actingRank') || '',
+  crewId: '',       // parseTextB 헤더에서 자동 감지
+  actingRank: '',   // parseTextB 헤더에서 자동 감지
+  selfName: '',     // parseTextB 헤더에서 자동 감지
   textA: '', textB: '',
   parsedA: [], parsedB: {}, merged: [], events: [],
   year: new Date().getFullYear(),
@@ -277,14 +278,20 @@ function parseTextB(text) {
   const CREW_RE = /^\d{5,}$/;
   const PIC_RE  = /^[PF]\d{1,2}$/;
   const RANK_RE = /^(CAP|FO|FDT|PUR|CS|CA|SFO|SCA)$/;
-  const DUTY_RE = /^(FLY|TVL|GRD)$/;
-  // ★ 헤더 컬럼명: comment/SDC 자리에 이 값이 오면 다음 편 시작으로 간주
   const HEADER_VALS = new Set([
     'Flight/Activity','From','STD','To','STA','A/C','Acting rank',
     'Duty','PIC code','Crew ID','Name','Comment','Special Duty Code'
   ]);
 
   const raw = text.split('\n').map(l => l.replace(/\u00A0/g, '').trim());
+
+  // ★ 상단 자기소개 헤더 파싱: "KIM YOUNG JIN  | 1304461  | 737  | CAP"
+  let selfInfo = null;
+  for (const line of raw) {
+    const m = line.match(/^(.+?)\s*\|\s*(\d+)\s*\|\s*\S+\s*\|\s*(\S+)/);
+    if (m) { selfInfo = { name: m[1].trim(), crewId: m[2].trim(), rank: m[3].trim() }; break; }
+  }
+
   const vals = [];
   for (let i = 0; i < raw.length; ) {
     if (raw[i] === 'Flight/Activity' && raw[i+1] === 'From' && raw[i+2] === 'STD') {
@@ -359,7 +366,7 @@ function parseTextB(text) {
       pos++;
     }
   }
-  return flights;
+  return { flights, selfInfo };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -434,7 +441,11 @@ function merge(itemsA, flightsB, crewId, defaultRank) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Build Calendar Events
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function buildEvents(merged, crewId, defaultRank) {
+function buildEvents(merged, crewId, defaultRank, selfName) {
+  // description에 표시할 본인 정보 한 줄 포맷
+  const selfLabel = selfName && crewId && defaultRank
+    ? `${selfName} (${crewId}, ${defaultRank})`
+    : (crewId ? `${crewId} / ${defaultRank}` : '');
   const events = [];
   let i = 0;
   // pre-compute show-ups
@@ -455,7 +466,7 @@ function buildEvents(merged, crewId, defaultRank) {
     if (['DO','RDO','ADO','ATDO','RESERVE'].includes(item.type)) {
       const disp = ALLDAY_DISPLAY[item.type] || item.type;
       events.push({ type: 'allday', subtype: item.type, date: item.date, title: disp,
-        description: `${disp}\n\nCrew ID: ${crewId}\nActing Rank: ${defaultRank}` });
+        description: `${disp}\n\n${selfLabel}` });
       i++; continue;
     }
 
@@ -463,12 +474,12 @@ function buildEvents(merged, crewId, defaultRank) {
       const disp = ALLDAY_DISPLAY[item.type];
       const rawCode = item.rawCode || item.type; // 예: HM_SBY12, AP_SBY15
       events.push({ type: 'allday', subtype: item.type, date: item.date, title: disp,
-        description: `${disp}\n\nCrew ID: ${crewId}\nActing Rank: ${defaultRank}` });
+        description: `${disp}\n\n${selfLabel}` });
       if (item.start && item.end) {
         // timed 이벤트 제목은 원본 코드(HM_SBY12, AP_SBY15) 사용
         events.push({ type: 'timed', subtype: item.type, date: item.date,
           title: `${rawCode} ${item.start} - ${item.end}`, start: item.start, end: item.end,
-          description: `${rawCode} ${item.start} - ${item.end}\n\nShow Up: ${item.start}\n\nCrew ID: ${crewId}\nActing Rank: ${defaultRank}` });
+          description: `${rawCode} ${item.start} - ${item.end}\n\nShow Up: ${item.start}\n\n${selfLabel}` });
       }
       i++; continue;
     }
@@ -481,16 +492,14 @@ function buildEvents(merged, crewId, defaultRank) {
       events.push({ type: 'allday', subtype: 'UNKNOWN', date: item.date, title: code,
         description: `${code}
 
-Crew ID: ${crewId}
-Acting Rank: ${defaultRank}` });
+${selfLabel}` });
       // 시간대가 있으면 Timed 이벤트도 추가 (SBY와 동일 방식)
       if (item.start && item.end) {
         events.push({ type: 'timed', subtype: 'UNKNOWN', date: item.date,
           title: `${code} ${item.start} - ${item.end}`, start: item.start, end: item.end,
           description: `${code} ${item.start} - ${item.end}
 
-Crew ID: ${crewId}
-Acting Rank: ${defaultRank}` });
+${selfLabel}` });
       }
       i++; continue;
     }
@@ -517,7 +526,7 @@ Acting Rank: ${defaultRank}` });
       const endDate = flights[flights.length - 1].arrDate || flights[flights.length - 1].date;
 
       events.push({ type: 'allday', subtype: 'TRIP', date: startDate, endDate, title: route,
-        description: `${route}\n기간: ${fmtDateRange(startDate, endDate)}\n\nCrew ID: ${crewId}\nActing Rank: ${flights[0].actingRank || defaultRank}` });
+        description: `${route}\n기간: ${fmtDateRange(startDate, endDate)}\n\n${selfLabel}` });
 
       let firstFlight = true;
       for (const f of flights) {
@@ -816,19 +825,6 @@ function goStep(n) {
   else if (n < state.step) { state.step = n; render(); }
 }
 
-function detectSelf(flightsB) {
-  // parsedB에서 가장 많은 편에 등장하는 crewId를 본인으로 감지
-  const count = {};
-  for (const f of Object.values(flightsB)) {
-    for (const c of f.crew) {
-      if (c.crewId) count[c.crewId] = (count[c.crewId] || { n: 0, rank: c.rank, crewId: c.crewId, name: c.name });
-      if (c.crewId) count[c.crewId].n++;
-    }
-  }
-  const sorted = Object.values(count).sort((a, b) => b.n - a.n);
-  return sorted.length ? sorted[0] : null;
-}
-
 function doParseAndGo() {
   if (!state.textA.trim()) { alert('달력 텍스트를 입력해주세요.'); return; }
   // 연도/월 자동 감지
@@ -837,16 +833,13 @@ function doParseAndGo() {
   state.month = detected.month;
   state.detectedSource = detected.source;
   state.parsedA = parseTextA(state.textA);
-  state.parsedB = state.textB.trim() ? parseTextB(state.textB) : {};
-  // ★ parsedB에서 본인 Crew ID / Acting Rank 자동 감지
-  if (state.textB.trim()) {
-    const self = detectSelf(state.parsedB);
-    if (self) {
-      state.crewId = self.crewId;
-      state.actingRank = self.rank || state.actingRank;
-      localStorage.setItem('crewId', state.crewId);
-      localStorage.setItem('actingRank', state.actingRank);
-    }
+  const bResult = state.textB.trim() ? parseTextB(state.textB) : { flights: {}, selfInfo: null };
+  state.parsedB = bResult.flights;
+  // ★ 헤더에서 감지된 본인 정보 적용
+  if (bResult.selfInfo) {
+    state.crewId    = bResult.selfInfo.crewId;
+    state.actingRank = bResult.selfInfo.rank;
+    state.selfName  = bResult.selfInfo.name;
   }
   state.merged = merge(state.parsedA, state.parsedB, state.crewId, state.actingRank);
   state.step = 2;
@@ -854,7 +847,7 @@ function doParseAndGo() {
 }
 
 function doEventsAndGo() {
-  state.events = buildEvents(state.merged, state.crewId, state.actingRank);
+  state.events = buildEvents(state.merged, state.crewId, state.actingRank, state.selfName);
   state.uploadLog = [];
   state.uploadDone = false;
   state.uploadResults = { ok: 0, skip: 0, fail: 0 };
