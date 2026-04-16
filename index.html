@@ -816,6 +816,19 @@ function goStep(n) {
   else if (n < state.step) { state.step = n; render(); }
 }
 
+function detectSelf(flightsB) {
+  // parsedB에서 가장 많은 편에 등장하는 crewId를 본인으로 감지
+  const count = {};
+  for (const f of Object.values(flightsB)) {
+    for (const c of f.crew) {
+      if (c.crewId) count[c.crewId] = (count[c.crewId] || { n: 0, rank: c.rank, crewId: c.crewId, name: c.name });
+      if (c.crewId) count[c.crewId].n++;
+    }
+  }
+  const sorted = Object.values(count).sort((a, b) => b.n - a.n);
+  return sorted.length ? sorted[0] : null;
+}
+
 function doParseAndGo() {
   if (!state.textA.trim()) { alert('달력 텍스트를 입력해주세요.'); return; }
   // 연도/월 자동 감지
@@ -825,6 +838,16 @@ function doParseAndGo() {
   state.detectedSource = detected.source;
   state.parsedA = parseTextA(state.textA);
   state.parsedB = state.textB.trim() ? parseTextB(state.textB) : {};
+  // ★ parsedB에서 본인 Crew ID / Acting Rank 자동 감지
+  if (state.textB.trim()) {
+    const self = detectSelf(state.parsedB);
+    if (self) {
+      state.crewId = self.crewId;
+      state.actingRank = self.rank || state.actingRank;
+      localStorage.setItem('crewId', state.crewId);
+      localStorage.setItem('actingRank', state.actingRank);
+    }
+  }
   state.merged = merge(state.parsedA, state.parsedB, state.crewId, state.actingRank);
   state.step = 2;
   render();
