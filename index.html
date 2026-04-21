@@ -375,7 +375,7 @@ function parseTextB(text) {
 function getShowUpOffset(dep, arr) {
   const isDom = KOREAN_AIRPORTS.includes(dep) && KOREAN_AIRPORTS.includes(arr);
   if (dep === 'GMP') return isDom ? { min: 70, label: '국내선, 1시간 10분 전' } : { min: 100, label: '국제선, 1시간 40분 전' };
-  if (dep === 'ICN') return { min: 95, label: isDom ? 'ICN 출발, 1시간 35분 전' : '국제선, 1시간 35분 전' };
+  if (dep === 'ICN') return { min: 95, label: isDom ? '내항기, 1시간 35분 전' : '국제선, 1시간 35분 전' };
   return isDom ? { min: 60, label: '국내선, 1시간 전' } : { min: 80, label: '국제선, 1시간 20분 전' };
 }
 
@@ -448,15 +448,17 @@ function buildEvents(merged, crewId, defaultRank, selfName) {
     : (crewId ? `${crewId} / ${defaultRank}` : '');
   const events = [];
   let i = 0;
-  // pre-compute show-ups
-  let inTrip = false, isFirst = true;
+  // pre-compute show-ups: 날짜별 첫 비행마다 Show Up 계산
+  let inTrip = false, lastSuDate = null;
   for (const it of merged) {
     if (it.type === 'FLIGHT') {
-      if (!inTrip) { inTrip = true; isFirst = true; }
-      if (isFirst) { const su = calcShowUp(it.date, it.depTime, it.dep, it.arr); it._su = su; }
-      isFirst = false;
+      if (!inTrip) { inTrip = true; lastSuDate = null; }
+      if (it.date !== lastSuDate) {
+        it._su = calcShowUp(it.date, it.depTime, it.dep, it.arr);
+        lastSuDate = it.date;
+      }
     } else if (it.type === 'LO') { /* keep trip */ }
-    else { inTrip = false; isFirst = true; }
+    else { inTrip = false; lastSuDate = null; }
   }
 
   i = 0;
@@ -525,12 +527,14 @@ ${selfLabel}` });
       const startDate = flights[0].date;
       const endDate = flights[flights.length - 1].arrDate || flights[flights.length - 1].date;
 
+      const tripSu = flights[0]._su;
+      const tripSuStr = tripSu ? `\nShow Up: ${tripSu.display} (${tripSu.label})` : '';
       events.push({ type: 'allday', subtype: 'TRIP', date: startDate, endDate, title: route,
-        description: `${route}\n기간: ${fmtDateRange(startDate, endDate)}\n\n${selfLabel}` });
+        description: `${route}\n기간: ${fmtDateRange(startDate, endDate)}\n${tripSuStr}\n\n${selfLabel}` });
 
-      let firstFlight = true;
+      let lastFlightDate = null;
       for (const f of flights) {
-        const su = firstFlight ? f._su : null;
+        const su = f._su || null; // 날짜별 첫 비행에만 _su가 설정됨
         const crewStr = (f.crew || []).length ? '\n--- Crew List ---\n' + buildCrewList(f.crew) : '';
         let desc = `${f.flightNum} ${f.depTime} ${f.dep} - ${f.arr} ${f.arrTime}`;
         if (su) desc += `\n\nShow Up: ${su.display} (${su.label})`;
@@ -541,7 +545,7 @@ ${selfLabel}` });
           dep: f.dep, arr: f.arr, actingRank: f.actingRank || defaultRank,
           showUp: su ? su.display : null, showUpLabel: su ? su.label : null,
           crew: f.crew || [], description: desc });
-        firstFlight = false;
+        lastFlightDate = f.date;
       }
       i = j; continue;
     }
