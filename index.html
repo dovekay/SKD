@@ -373,9 +373,17 @@ function parseTextB(text) {
 // Show-up calculation
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function getShowUpOffset(dep, arr) {
-  const isDom = KOREAN_AIRPORTS.includes(dep) && KOREAN_AIRPORTS.includes(arr);
+  // 내항기: ICN-PUS, PUS-ICN, ICN-TAE, TAE-ICN 4개 구간만
+  const NAEHANG = new Set(['ICN|PUS','PUS|ICN','ICN|TAE','TAE|ICN']);
+  const isNaeHang = NAEHANG.has(`${dep}|${arr}`);
+  const isDom = KOREAN_AIRPORTS.includes(dep) && KOREAN_AIRPORTS.includes(arr) && !isNaeHang;
+
   if (dep === 'GMP') return isDom ? { min: 70, label: '국내선, 1시간 10분 전' } : { min: 100, label: '국제선, 1시간 40분 전' };
-  if (dep === 'ICN') return { min: 95, label: isDom ? '내항기, 1시간 35분 전' : '국제선, 1시간 35분 전' };
+  if (dep === 'ICN') {
+    if (isNaeHang) return { min: 95, label: '내항기, 1시간 35분 전' };
+    return isDom ? { min: 70, label: '국내선, 1시간 10분 전' } : { min: 95, label: '국제선, 1시간 35분 전' };
+  }
+  if (isNaeHang) return { min: 80, label: '내항기, 1시간 20분 전' };
   return isDom ? { min: 60, label: '국내선, 1시간 전' } : { min: 80, label: '국제선, 1시간 20분 전' };
 }
 
