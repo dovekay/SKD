@@ -536,8 +536,19 @@ ${selfLabel}` });
       const endDate = flights[flights.length - 1].arrDate || flights[flights.length - 1].date;
 
       const tripSu = flights[0]._su;
+      const lastFlight = flights[flights.length - 1];
+      // TRIP 시작: 쇼업 시각 (전날인 경우 prevDay 적용)
+      const tripStartTime = tripSu ? tripSu.display.replace('(-1)', '') : flights[0].depTime;
+      const tripStartDate = tripSu && tripSu.display.includes('(-1)') ? prevDay(startDate) : startDate;
+      // TRIP 종료: 마지막 비행 도착 + 30분
+      const endPlus = addMinsToTime(lastFlight.arrTime, 30);
+      const tripEndDate = endPlus.dayOffset > 0 ? addDay(endDate) : endDate;
+      const tripEndTime = endPlus.time;
       const tripSuStr = tripSu ? `\nShow Up: ${tripSu.display} (${tripSu.label})` : '';
-      events.push({ type: 'allday', subtype: 'TRIP', date: startDate, endDate, title: route,
+      events.push({ type: 'timed', subtype: 'TRIP',
+        date: tripStartDate, start: tripStartTime,
+        arrDate: tripEndDate, end: tripEndTime,
+        title: route,
         description: `${route}\n기간: ${fmtDateRange(startDate, endDate)}\n${tripSuStr}\n\n${selfLabel}` });
 
       let lastFlightDate = null;
@@ -658,7 +669,7 @@ async function uploadToGCal() {
     try {
       // duplicate check: search by summary + date
       const checkFrom = ev.date + 'T00:00:00Z';
-      const checkTo = addDay(ev.endDate || ev.date) + 'T00:00:00Z';
+      const checkTo = addDay(ev.arrDate || ev.endDate || ev.date) + 'T00:00:00Z';
       const searchUrl = `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?q=${encodeURIComponent(ev.title)}&timeMin=${checkFrom}&timeMax=${checkTo}&singleEvents=true`;
       const searchR = await fetch(searchUrl, { headers: { Authorization: 'Bearer ' + state.accessToken } });
       const searchData = await searchR.json();
@@ -771,10 +782,21 @@ function fmtCSVDate(dateStr) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function pad(n) { return String(n).padStart(2, '0'); }
 function addDay(dateStr) {
-  // toISOString()은 UTC 변환으로 UTC+9에서 하루 당겨지므로 로컬 계산 사용
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d + 1);
   return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+}
+function prevDay(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d - 1);
+  return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+}
+function addMinsToTime(timeStr, mins) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + mins;
+  const dayOffset = Math.floor(total / 1440);
+  const rem = total % 1440;
+  return { time: pad(Math.floor(rem / 60)) + ':' + pad(rem % 60), dayOffset };
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function fmtD(dateStr) {
@@ -873,7 +895,7 @@ function renderStep1() {
   return `
 <div class="card">
   <h2>📅 달력 텍스트 — 입력창 A</h2>
-  <div class="alert alert-info">Crew Web Portal 홈페이지의 My Schedule 페이지에서 달력부분만 선택(SUNDAY 부터 해당월 말일 스케줄까지 드래그) 후 복사(<strong>Ctrl+C</strong>)해서 아래에 붙여넣으세요.</div>
+  <div class="alert alert-info">Crew Web Portal 홈페이지의 My Schedule 페이지에서 달력부분만 선택 (SUNDAY 부터 해당월 말일 스케줄까지 드래그) 후 복사(<strong>Ctrl+C</strong>)해서 아래에 붙여넣으세요.</div>
   <textarea id="inp-a" rows="14" placeholder="여기에 붙여넣으세요...">${state.textA}</textarea>
 </div>
 <div class="card">
