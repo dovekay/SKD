@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'IBM Plex Sans KR',sans-serif;background:#f0ede8;color:#111;min-height:100vh;letter-spacing:-0.2px}
+body{font-family:'IBM Plex Sans KR',sans-serif;background:#f0ede8;color:#111;min-height:100vh;letter-spacing:-0.2px;padding-bottom:36px}
 :root{--c1:#0a2540;--c2:#1a4a7a;--c3:#e6f0fa;--c4:#2962a8;--acc:#e8420a;--radius:8px}
 .app{max-width:980px;margin:0 auto;padding:20px}
 
@@ -536,19 +536,8 @@ ${selfLabel}` });
       const endDate = flights[flights.length - 1].arrDate || flights[flights.length - 1].date;
 
       const tripSu = flights[0]._su;
-      const lastFlight = flights[flights.length - 1];
-      // TRIP 시작: 쇼업 시각 (전날인 경우 prevDay 적용)
-      const tripStartTime = tripSu ? tripSu.display.replace('(-1)', '') : flights[0].depTime;
-      const tripStartDate = tripSu && tripSu.display.includes('(-1)') ? prevDay(startDate) : startDate;
-      // TRIP 종료: 마지막 비행 도착 + 30분
-      const endPlus = addMinsToTime(lastFlight.arrTime, 30);
-      const tripEndDate = endPlus.dayOffset > 0 ? addDay(endDate) : endDate;
-      const tripEndTime = endPlus.time;
       const tripSuStr = tripSu ? `\nShow Up: ${tripSu.display} (${tripSu.label})` : '';
-      events.push({ type: 'timed', subtype: 'TRIP',
-        date: tripStartDate, start: tripStartTime,
-        arrDate: tripEndDate, end: tripEndTime,
-        title: route,
+      events.push({ type: 'allday', subtype: 'TRIP', date: startDate, endDate, title: route,
         description: `${route}\n기간: ${fmtDateRange(startDate, endDate)}\n${tripSuStr}\n\n${selfLabel}` });
 
       let lastFlightDate = null;
@@ -668,9 +657,8 @@ async function uploadToGCal() {
 
     try {
       // duplicate check: search by summary + date
-      // timed 이벤트(TRIP 포함): 해당 날짜 범위로 중복 검색
-      const checkFrom = (ev.date) + 'T00:00:00Z';
-      const checkTo = addDay(ev.arrDate || ev.endDate || ev.date) + 'T00:00:00Z';
+      const checkFrom = ev.date + 'T00:00:00Z';
+      const checkTo = addDay(ev.endDate || ev.date) + 'T00:00:00Z';
       const searchUrl = `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?q=${encodeURIComponent(ev.title)}&timeMin=${checkFrom}&timeMax=${checkTo}&singleEvents=true`;
       const searchR = await fetch(searchUrl, { headers: { Authorization: 'Bearer ' + state.accessToken } });
       const searchData = await searchR.json();
@@ -783,22 +771,10 @@ function fmtCSVDate(dateStr) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function pad(n) { return String(n).padStart(2, '0'); }
 function addDay(dateStr) {
+  // toISOString()은 UTC 변환으로 UTC+9에서 하루 당겨지므로 로컬 계산 사용
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d + 1);
   return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
-}
-function prevDay(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d - 1);
-  return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
-}
-function addMinsToTime(timeStr, mins) {
-  // "HH:MM" + mins → { time: "HH:MM", dayOffset: 0|1 }
-  const [h, m] = timeStr.split(':').map(Number);
-  const total = h * 60 + m + mins;
-  const dayOffset = Math.floor(total / 1440);
-  const rem = total % 1440;
-  return { time: pad(Math.floor(rem / 60)) + ':' + pad(rem % 60), dayOffset };
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function fmtD(dateStr) {
@@ -1179,5 +1155,11 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<footer style="position:fixed;bottom:0;left:0;width:100%;padding:8px 16px;background:rgba(240,237,232,0.92);backdrop-filter:blur(6px);border-top:.5px solid rgba(0,0,0,.08);display:flex;gap:16px;align-items:center;z-index:999;font-family:'IBM Plex Mono',monospace">
+  <a href="https://dovekay.github.io/SKED/privacy_policy.html" target="_blank" rel="noopener"
+     style="font-size:10px;color:#666;text-decoration:none;letter-spacing:.3px">개인정보처리방침</a>
+  <a href="https://dovekay.github.io/SKED/terms_of_service.html" target="_blank" rel="noopener"
+     style="font-size:10px;color:#666;text-decoration:none;letter-spacing:.3px">약관</a>
+</footer>
 </body>
 </html>
