@@ -24,7 +24,7 @@
 
 ### 제6조 (면책 조항)
 ① 본인의 최종 비행스케줄은 이용자가 직접 Crew Web Portal을 통해 확인하고 준수하여야 합니다.   
-② 운영자는 무료 서비스 이용과 관련하여 법령에 특별한 규정이 없는 한 책임을 지지 않습니다.
+② 운영자는 무료 서비스 이용과 관련하여 법령에 특별한 규정이 없는 한 책임을 지지 않습니다.  
 ③ 서비스는 "있는 그대로(AS-IS)" 제공되며, 특정 목적에의 적합성을 보증하지 않습니다.
 
 ### 제7조 (준거법 및 분쟁 해결)
@@ -50,7 +50,8 @@ A valid Google account is required. Users must not interfere with the Service or
 The Operator may temporarily suspend the Service for technical reasons or force majeure events.
 
 ### Article 6 – Disclaimer
-It is the responsibility of the individual to verify and comply with their final flight schedule via the Crew Web Portal. The Operator is not liable for issues arising from use of the free Service. Service is provided "AS IS".
+It is the responsibility of the individual to verify and comply with their final flight schedule via the Crew Web Portal.  
+The Operator is not liable for issues arising from use of the free Service. Service is provided "AS IS".
 
 ### Article 7 – Governing Law
 These Terms are governed by the laws of the Republic of Korea.
