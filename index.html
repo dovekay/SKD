@@ -201,26 +201,66 @@ const state = {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Auto-detect year & month
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const MONTH_NAME_MAP = {
+  Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,
+  Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12
+};
+
 function autoDetectYearMonth(textA, textB) {
   // 1순위: 입력창 B의 STD 날짜에서 추출 (가장 정확)
   if (textB) {
     const m = textB.match(/(\d{4})-(\d{2})-\d{2}/);
     if (m) return { year: parseInt(m[1]), month: parseInt(m[2]), source: '입력창 B' };
   }
-  // 2순위: 입력창 A에서 날짜 패턴 추출 (YYYY-MM-DD 형식이 있을 경우)
+  // 2순위: 입력창 A에서 YYYY-MM-DD 날짜 패턴 추출
   if (textA) {
     const m = textA.match(/(\d{4})-(\d{2})-\d{2}/);
     if (m) return { year: parseInt(m[1]), month: parseInt(m[2]), source: '입력창 A' };
   }
-  // 3순위: 현재 날짜 기준
+  // 3순위: 입력창 A에서 "Apr 2026" 스타일 월/년도 추출 (전체 페이지 붙여넣기 대응)
+  if (textA) {
+    const m = textA.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})\b/);
+    if (m) return { year: parseInt(m[2]), month: MONTH_NAME_MAP[m[1]], source: '입력창 A (월이름)' };
+  }
+  // 4순위: 현재 날짜 기준
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() + 1, source: '현재 날짜' };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Calendar text cleaner
+// 전체 페이지 붙여넣기 시 달력 부분만 추출
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function cleanCalendarText(text) {
+  const lines = text.split('\n').map(l => l.trim());
+
+  // 시작점: 첫 번째 "Sunday" 줄 (요일 헤더 행)
+  const start = lines.findIndex(l => l === 'Sunday');
+  if (start < 0) return text; // "Sunday"가 없으면 원본 그대로 반환 (기존 방식 호환)
+
+  // 종료점: 푸터 시작 신호 — "* Flight", "Copyright" 등
+  let end = lines.length;
+  for (let i = start; i < lines.length; i++) {
+    if (/^\*\s/.test(lines[i]) || /^Copyright/i.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+
+  // 슬라이싱 후, 말미에 남은 빈 줄 및 순수 숫자 줄(다음달 날짜 01, 02 등) 제거
+  const sliced = lines.slice(start, end);
+  while (sliced.length > 0 && (/^\d{1,2}$/.test(sliced[sliced.length - 1]) || sliced[sliced.length - 1] === '')) {
+    sliced.pop();
+  }
+
+  return sliced.join('\n');
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Parsing — Text A (calendar grid)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function parseTextA(text) {
+  text = cleanCalendarText(text);
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const DAYS = new Set(['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']);
   let curDate = null;
@@ -895,7 +935,7 @@ function renderStep1() {
   return `
 <div class="card">
   <h2>📅 달력 텍스트 — 입력창 A</h2>
-  <div class="alert alert-info">Crew Web Portal 홈페이지의 My Schedule 페이지에서 달력부분만 선택(SUNDAY 부터 해당월 말일 스케줄까지 드래그) 후 복사(<strong>Ctrl+C</strong>)해서 아래에 붙여넣으세요.</div>
+  <div class="alert alert-info">Crew Web Portal의 My Schedule 페이지에서 <strong>전체 선택(Ctrl+A)</strong> 후 복사(<strong>Ctrl+C</strong>)하여 아래에 붙여넣으세요. 페이지 전체 내용을 그대로 붙여넣어도 달력 부분만 자동으로 추출합니다. <span style="opacity:.7">(기존 방식대로 달력 부분만 선택해서 붙여넣어도 됩니다.)</span></div>
   <textarea id="inp-a" rows="14" placeholder="여기에 붙여넣으세요...">${state.textA}</textarea>
 </div>
 <div class="card">
