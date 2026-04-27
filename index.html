@@ -140,6 +140,7 @@ pre.desc-block{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:4px
 .select-cal{width:100%;padding:8px 10px;border:1px solid rgba(0,0,0,.18);border-radius:5px;font-size:13px;font-family:'IBM Plex Mono',monospace}
 
 /* ── Misc ── */
+.font-mono{font-family:'IBM Plex Mono',monospace}
 .lo-row td{color:#aaa!important;font-style:italic}
 .alert{padding:10px 14px;border-radius:5px;font-size:12px;margin-bottom:10px;font-family:'IBM Plex Mono',monospace;border-left:3px solid;line-height:1.6}
 .alert-info{background:#e6f0fa;color:#0a2540;border-color:var(--c4)}
@@ -151,13 +152,13 @@ pre.desc-block{background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:4px
 </head>
 <body>
 <div class="app">
-  <div class="header">
+  <header class="header">
     <div class="header-top">
-      <span style="font-size:20px">✈</span>
+      <span aria-hidden="true" style="font-size:20px">✈</span>
       <h1>KE SCHEDULE UPLOADER</h1>
     </div>
     <p>월간스케줄(MY SCHEDULE)과 Crew Roster Report에서 HTML로 출력하여 복사한 텍스트를 붙여넣으면 자동으로 변환합니다.</p>
-  </div>
+  </header>
   <div class="steps" id="steps-bar"></div>
   <div id="content"></div>
 </div>
@@ -838,16 +839,12 @@ function fmtCSVDate(dateStr) {
 // Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function pad(n) { return String(n).padStart(2, '0'); }
-function addDay(dateStr) {
+function addDay(dateStr, n = 1) {
   const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d + 1);
+  const dt = new Date(y, m - 1, d + n);
   return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
 }
-function prevDay(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d - 1);
-  return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
-}
+function prevDay(dateStr) { return addDay(dateStr, -1); }
 function addMinsToTime(timeStr, mins) {
   const [h, m] = timeStr.split(':').map(Number);
   const total = h * 60 + m + mins;
@@ -867,16 +864,7 @@ function fmtDateRange(s, e) {
   return s === e ? fmt(s) : `${fmt(s)} ~ ${fmt(e)}`;
 }
 function getEventDates(ev) {
-  if (ev.type === 'allday' && ev.endDate && ev.endDate !== ev.date) {
-    const dates = [];
-    const [sy, sm, sd] = ev.date.split('-').map(Number);
-    const [ey, em, ed] = ev.endDate.split('-').map(Number);
-    let d = new Date(sy, sm-1, sd);
-    const end = new Date(ey, em-1, ed);
-    const fmt = dt => dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
-    while (d <= end) { dates.push(fmt(d)); d.setDate(d.getDate() + 1); }
-    return dates;
-  }
+  // allday 이벤트에 endDate가 세팅되지 않으므로 항상 시작일만 반환
   return [ev.date];
 }
 function evClass(ev) {
@@ -1001,10 +989,10 @@ function renderStep2() {
     const disp = ALLDAY_DISPLAY[it.type] || it.type;
     if (it.type === 'FLIGHT') {
       return `<tr><td>${fmtD(it.date)}</td><td><span class="badge ${badgeCls}">FLIGHT</span></td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-weight:600">${it.flightNum}</td>
+        <td class="font-mono" style="font-weight:600">${it.flightNum}</td>
         <td>${it.dep} ${it.depTime}</td><td>${it.arr} ${it.arrTime}</td>
         <td>${it.actingRank || '-'}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:${it._suDisp==='(연속편)'?'#888':'#0a2540'}">${it._suDisp || '-'}</td></tr>`;
+        <td class="font-mono" style="font-size:11px;color:${it._suDisp==='(연속편)'?'#888':'#0a2540'}">${it._suDisp || '-'}</td></tr>`;
     }
     return `<tr><td>${fmtD(it.date)}</td><td><span class="badge ${badgeCls}">${disp}</span></td><td colspan="5" style="color:#666">${disp}</td></tr>`;
   }).join('');
@@ -1058,7 +1046,7 @@ function renderStep3() {
     const ds = `${y}-${pad(m)}-${pad(day)}`;
     const dayEvs = byDate[ds] || [];
     const evHtml = dayEvs.slice(0, 3).map(ev => `<div class="cal-event ${evClass(ev)}">${ev.title.length > 17 ? ev.title.slice(0, 17) + '…' : ev.title}</div>`).join('');
-    const more = dayEvs.length > 3 ? `<div style="font-size:9px;color:#888;font-family:'IBM Plex Mono',monospace">+${dayEvs.length - 3}</div>` : '';
+    const more = dayEvs.length > 3 ? `<div class="font-mono" style="font-size:9px;color:#888">+${dayEvs.length - 3}</div>` : '';
     const sel = state.selectedDate === ds;
     calCells += `<div class="cal-cell${sel ? ' selected' : ''}" onclick="selectDate('${ds}')">
       <div class="date-num">${day}</div>${evHtml}${more}</div>`;
@@ -1121,7 +1109,7 @@ function renderStep3() {
   const pct = filteredCount ? Math.round((done / filteredCount) * 100) : 0;
   const uploadSection = (state.uploading || state.uploadDone) ? `
     <div style="margin-top:12px">
-      <div style="display:flex;justify-content:space-between;font-size:11px;font-family:'IBM Plex Mono',monospace;margin-bottom:3px">
+      <div class="font-mono" style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
         <span>진행중... ${done}/${filteredCount}</span><span id="upload-pct">${pct}%</span>
       </div>
       <div class="progress-wrap"><div class="progress-bar" id="upload-progress" style="width:${pct}%"></div></div>
@@ -1155,13 +1143,13 @@ ${summaryBar}
   ${authBar}
   ${calSelector}
   <div class="form-group" style="margin-bottom:12px">
-    <label style="display:block;font-size:11px;font-weight:600;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;font-family:'IBM Plex Mono',monospace">
+    <label class="font-mono" style="display:block;font-size:11px;font-weight:600;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">
       이 날짜 이후만 등록 <span style="font-weight:400;color:#aaa">(비워두면 전체 등록)</span>
     </label>
     <input type="date" id="inp-filter-date" class="input-date" value="${state.filterFromDate}"
       onchange="state.filterFromDate=this.value;render()">
     ${state.filterFromDate ? `<button class="btn btn-secondary btn-sm" style="margin-left:8px" onclick="state.filterFromDate='';render()">✕ 초기화</button>
-      <span style="margin-left:8px;font-size:11px;color:#2962a8;font-family:'IBM Plex Mono',monospace">
+      <span class="font-mono" style="margin-left:8px;font-size:11px;color:#2962a8">
         ${state.filterFromDate} 이후: <strong>${filteredCount}개</strong> 등록 예정
       </span>` : ''}
   </div>
@@ -1193,7 +1181,7 @@ ${summaryBar}
 }
 
 function renderEventList(evs) {
-  if (!evs.length) return '<p style="color:#999;font-size:12px;text-align:center;padding:20px;font-family:\'IBM Plex Mono\',monospace">해당 이벤트 없음</p>';
+  if (!evs.length) return '<p class="font-mono" style="color:#999;font-size:12px;text-align:center;padding:20px">해당 이벤트 없음</p>';
   return evs.map(ev => `
     <div class="ev-row">
       <div class="ev-date">${fmtD(ev.date)}</div>
@@ -1242,7 +1230,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
-<footer style="position:fixed;bottom:0;left:0;width:100%;padding:8px 16px;background:rgba(240,237,232,0.92);backdrop-filter:blur(6px);border-top:.5px solid rgba(0,0,0,.08);display:flex;gap:12px;align-items:center;justify-content:center;z-index:999;font-family:'IBM Plex Mono',monospace">
+<footer class="font-mono" style="position:fixed;bottom:0;left:0;width:100%;padding:8px 16px;background:rgba(240,237,232,0.92);backdrop-filter:blur(6px);border-top:.5px solid rgba(0,0,0,.08);display:flex;gap:12px;align-items:center;justify-content:center;z-index:999">
   <a href="https://dovekay.github.io/SKED/privacy_policy.html" target="_blank" rel="noopener"
      style="font-size:10px;color:#666;text-decoration:none;letter-spacing:.3px">개인정보처리방침</a>
   <a href="https://dovekay.github.io/SKED/terms_of_service.html" target="_blank" rel="noopener"
